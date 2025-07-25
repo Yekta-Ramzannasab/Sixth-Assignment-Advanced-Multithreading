@@ -1,13 +1,17 @@
 package MonteCarloPI;
 
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MonteCarloPi {
 
-    static final long NUM_POINTS = 50_000_000L;
-    static final int NUM_THREADS = Runtime.getRuntime().availableProcessors();
+    static final long NUM_POINTS = 50_000_000L; //The number of points generated to estimate π.
+    static final int NUM_THREADS = Runtime.getRuntime().availableProcessors(); //The number of threads the system can run simultaneously (based on the number of processor cores).
+
     public static void main(String[] args) throws InterruptedException, ExecutionException
     {
         // Without Threads
@@ -26,15 +30,29 @@ public class MonteCarloPi {
         System.out.println("Monte Carlo Pi Approximation (Multi-threaded): " + piWithThreads);
         System.out.println("Time taken (Multi-threaded): " + (endTime - startTime) / 1_000_000 + " ms");
 
-        // TODO: After completing the implementation, reflect on the questions in the description of this task in the README file
-        //       and include your answers in your report file.
+
     }
+
+//    Suppose a circle with radius 1 is inside a 2x2 square.
+//    Circle: center at point (0,0), radius 1 → its equation becomes: x2+y2≤1
+//    Square: its vertices are from (-1, -1) to (1, 1) → its total area = 4
+//    If we scatter many random points inside this square, a percentage of them will fall inside the circle.
+//    Now if we get this ratio by chance (i.e. by dividing the number of points inside the circle by the total points)
 
     // Monte Carlo Pi Approximation without threads
     public static double estimatePiWithoutThreads(long numPoints)
-    {
-        // TODO: Implement this method to calculate Pi using a single thread
-        return 0;
+    { // TODO: Implement this method to calculate Pi using a single thread
+        Random random = new Random();
+        long insideCircle = 0;
+
+        for (long i = 0; i < numPoints; i++) {
+            double x = random.nextDouble() * 2 - 1; //Random number between 0.0 and 1.0 and multiply 2 then minus 1 gives us number between -1 and 1;
+            double y = random.nextDouble() * 2 - 1;
+            if (x * x + y * y <= 1) {
+                insideCircle++;
+            }
+        }
+        return 4.0 * insideCircle / numPoints;
     }
 
     // Monte Carlo Pi Approximation with threads
@@ -43,13 +61,35 @@ public class MonteCarloPi {
         // TODO: Implement this method to calculate Pi using multiple threads
 
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        AtomicLong totalInsideCircle = new AtomicLong(0);
+        long pointsPerThread = numPoints / numThreads; //Each thread is going to check a certain number of points. So we divide the number of points between the threads.
 
-        // HINT: You may need to create a variable to *safely* keep track of points that fall inside the circle
-        // HINT: Each thread should generate and process a subset of the total points
+        // Create and submit tasks
+        for (int i = 0; i < numThreads; i++) { //for any thread define a task and send it to the executor
+            final long threadPoints = (i == numThreads - 1) ?
+                    (numPoints - pointsPerThread * (numThreads - 1)) : pointsPerThread;
 
-        // TODO: After submitting all tasks, shut down the executor to prevent new tasks
-        // TODO: wait for the executor to be fully terminated
-        // TODO: Calculate and return the final estimation of Pi
-        return 0;
+
+            executor.submit(() -> {
+                Random random = new Random();
+                long insideCircle = 0;
+
+                for (long j = 0; j < threadPoints; j++) {
+                    double x = random.nextDouble() * 2 - 1;
+                    double y = random.nextDouble() * 2 - 1;
+                    if (x * x + y * y <= 1) {
+                        insideCircle++;
+                    }
+                }
+
+                totalInsideCircle.addAndGet(insideCircle);
+            });
+        }
+
+        // Shutdown and wait for completion
+        executor.shutdown(); // Do not accept more tasks but finishes undone ones
+        executor.awaitTermination(1, TimeUnit.MINUTES);
+
+        return 4.0 * totalInsideCircle.get() / numPoints;
     }
 }
